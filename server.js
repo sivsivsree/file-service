@@ -7,12 +7,13 @@ const crypto = require('crypto');
 const httpStatusCodes = require("http-status-codes");
 const app = express();
 const routes = require('./controllers/upload-controller');
-
+const appmetrics = require('appmetrics');
+const monitoring = appmetrics.monitor();
 
 const PORT = process.env.PORT || 5050;
 
 
-//setups
+//global setups
 global.APIKEY = crypto.createHash('md5').update(process.env.APIKEY).digest('hex');
 
 
@@ -28,7 +29,8 @@ const routerReg = require('./routeReg');
 routerReg(app);
 
 const queueReg = require('./rabbitMQ/startQueueServer')
-queueReg.startQueueServer();
+const mongoDB = require('./database/enableMongo');
+
 
 app.use(function (err, req, res, next) {
     //logger.log('error', err);
@@ -44,4 +46,9 @@ app.use(function (req, res) {
 });
 
 console.log("APIKEY:" + APIKEY);
-app.listen(PORT);
+
+queueReg.startQueueServer().then(()=>{
+    mongoDB.connectMongo(()=>{
+        app.listen(PORT).on('error', console.log);
+    })
+}).catch(console.log);

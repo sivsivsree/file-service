@@ -41,6 +41,10 @@ services:
     volumes:
     - ~/file-service/filesystem:/data/filesystem/images
 
+  graphana:
+    image: 'grafana/grafana'
+    ports:
+    - "3000:3000"
 
 volumes:
   data-volume:
