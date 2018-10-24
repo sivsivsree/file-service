@@ -1,0 +1,48 @@
+version: '3'
+networks:
+  internal-network:
+    driver: bridge
+
+services:
+
+  #RabbitMQ service.
+  rabbitmq:
+    image: 'bitnami/rabbitmq:latest'
+    labels:
+      kompose.service.type: nodeport
+    ports:
+    - '4369:4369'
+    - '5672:5672'
+    - '25672:25672'
+    - '15672:15672'
+    volumes:
+    - 'rabbitmq_data:/bitnami'
+
+  #MongoDB
+  mongo:
+    image: mongo
+    ports:
+    - "27018:27017"
+    volumes:
+    - ~/file-service/database:/data/db
+
+  #Application Server
+  server:
+    build: .
+    restart: on-failure
+    environment:
+      APIKEY: mykey
+    ports:
+    - "8082:5050"
+    depends_on:
+    - mongo
+    links:
+    - rabbitmq
+    volumes:
+    - ~/file-service/filesystem:/data/filesystem/images
+
+
+volumes:
+  data-volume:
+  rabbitmq_data:
+    driver: local
