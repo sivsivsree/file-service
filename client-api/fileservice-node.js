@@ -50,10 +50,9 @@ class FileService {
                     'file': buffer
                 };
 
-                await this._sendStream(msg);
-
-                return msg;
+                this._sendStream(msg);
             }
+            return msg;
         }
     }
 
@@ -96,23 +95,22 @@ class FileService {
         try {
             this.open = await amqp.connect(QUEUE_CONNECTION);
             this.channel = await this.open.createChannel();
-
         } catch (e) {
             throw { error: "File upload failed.", success: false, err: e };
         }
     }
 
-    async _sendStream(msg){
+    async _sendStream(msg) {
         console.log(msg);
-        if(this.channel){
-            await this.channel.assertQueue(QUEUE, { durable: true });
-            await this.channel.sendToQueue(QUEUE, Buffer.from(JSON.stringify(msg)), { persistent: true });
+        if (this.channel) {
+            this.channel.assertQueue(QUEUE, { durable: true });
+            this.channel.sendToQueue(QUEUE, Buffer.from(JSON.stringify(msg)), { persistent: true });
         }
         return -1;
     }
 
     setBucket(bucket) {
-        this.bucket = (bucket.split(" ").join("_")).split("/").join("_");
+        this.bucket = bucket.replace(/[^\w\s]/gi, "-").split(" ").join("-").substr(0, 15);
         return this;
     }
 
