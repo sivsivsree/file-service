@@ -25,9 +25,7 @@ const connectQueueServer = async () => {
         console.log("Rabbitmq connection Failed.. Reconnecting...");
         return setTimeout(connectQueueServer, 1000);
     }
-
 };
-
 
 const processData = (data, channel, msg) => {
     let dataBuffer = new Buffer.from(data.file);

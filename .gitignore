@@ -72,4 +72,6 @@ typings/
 # Serverless directories
 .serverless
 
-.idea/
+.idea/*
+.idea
+.github
