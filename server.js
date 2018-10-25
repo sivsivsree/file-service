@@ -7,8 +7,8 @@ const crypto = require('crypto');
 const httpStatusCodes = require("http-status-codes");
 const app = express();
 const routes = require('./controllers/upload-controller');
-const appmetrics = require('appmetrics');
-const monitoring = appmetrics.monitor();
+require('appmetrics-dash').attach();
+require('appmetrics-prometheus').attach();
 
 const PORT = process.env.PORT || 5050;
 
@@ -48,7 +48,7 @@ app.use(function (req, res) {
 console.log("APIKEY:" + APIKEY);
 
 queueReg.startQueueServer().then(()=>{
-    mongoDB.connectMongo(()=>{
-        app.listen(PORT).on('error', console.log);
-    })
+    mongoDB.connectMongo();
 }).catch(console.log);
+
+app.listen(PORT).on('error', console.log);

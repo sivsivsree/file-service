@@ -4,7 +4,7 @@ const Promise = require('bluebird');
 
 const loggerName = '[mongodbConnection]:';
 
-const mongoConnection = 'mongodb://mongo:27017/file-service'
+const mongoConnection = 'mongodb://mongo:27017/file-service';
 
 
 exports.connectMongo = function (cb = null) {
