@@ -34,13 +34,14 @@ services:
       APIKEY: mykey
     ports:
     - "8082:5050"
+    - "3001:3001"
+    - "9090:9090"
     depends_on:
     - mongo
     links:
     - rabbitmq
     volumes:
     - ~/file-service/filesystem:/data/filesystem/images
-
 
 volumes:
   data-volume:
