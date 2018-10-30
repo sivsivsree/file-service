@@ -1,24 +1,28 @@
 "use strict";
 
-let ampq = require('amqplib');
-let connection = 'amqp://user:bitnami@rabbitmq:5672/';
-let fs = require('fs');
+const ampq = require('amqplib');
+const fs = require('fs');
 
-let q = 'image_queue_stress';
+const connection = 'amqp://user:bitnami@rabbitmq:5672/';
+const q = 'fileservice.queue.presistent';
 
+let conn = null;
 
 const connectQueueServer = async () => {
     try {
-        let conn = await ampq.connect(connection);
+        conn = await ampq.connect(connection);
         let ch = await conn.createChannel();
         ch.assertQueue(q, {durable: true});
-        ch.prefetch(1)
+        ch.prefetch(1);
         console.log("Queue Server started...");
         ch.consume(q, (msg) => {
             if (msg !== null) {
-
-                processData(JSON.parse(msg.content.toString()), ch, msg);
-
+                let data = JSON.parse(msg.content.toString());
+                if (!data.chunks) {
+                    processSingleFile(data, ch, msg);
+                } else {
+                    processStream(data, ch, msg);
+                }
             }
         });
     } catch (err) {
@@ -27,14 +31,13 @@ const connectQueueServer = async () => {
     }
 };
 
-const processData = (data, channel, msg) => {
-    let dataBuffer = new Buffer.from(data.file);
+const processSingleFile = (data, channel, msg) => {
+    let dataBuffer = Buffer.from(data.file);
     let filename = data.filename;  //get it from queue json
     let bucket = data.bucket + "_";
-    var wstream = '/data/filesystem/images/' + bucket + filename;
+    var outputFile = '/data/filesystem/images/' + bucket + filename;
 
-
-    fs.open(wstream, 'w', function (err, fd) {
+    fs.open(outputFile, 'w', function (err, fd) {
         if (err) {
             throw 'could not open file: ' + err;
         }
@@ -45,9 +48,27 @@ const processData = (data, channel, msg) => {
             });
         });
     });
-
-
 };
+
+const processStream = (data, channel, msg) => {
+    let dataBuffer = Buffer.from(data.file, 'utf8');
+    let filename = data.filename;  //get it from queue json
+    let bucket = data.bucket + "_";
+    let outputFile = '/data/filesystem/images/' + bucket + filename;
+
+    fs.open(outputFile, 'a+', function (err, fd) {
+        if (err) {
+            throw 'could not open file: ' + err;
+        }
+        fs.write(fd, dataBuffer, 0, dataBuffer.length, null, function (err) {
+            if (err) throw 'error writing file: ' + err;
+            fs.close(fd, function () {
+                channel.ack(msg);
+            });
+        });
+    });
+};
+
 
 module.exports = {
     startQueueServer: connectQueueServer

@@ -6,21 +6,26 @@ const path = require('path');
 const fsx = require('fs-extra');
 const splitFile = require('./file-splitter');
 
-const QUEUE_CONNECTION = 'amqp://user:bitnami@localhost:5672/';
-const QUEUE = 'image_queue_stress';
+const QUEUE = 'fileservice.queue.presistent';
 
-const Promise = require("bluebird");
+
 const CHUNK_BUFFER = 2e+6;
 
 
 class FileService {
 
-    constructor(API_KEY) {
-        this.API_KEY = API_KEY;
+    constructor(CRED) {
+        this.QUEUE_CONNECTION = FileService._createAMQPCONN(CRED);
+        this.API_KEY = CRED.API_KEY;
+    }
+
+    static _createAMQPCONN(CRED){
+        return 'amqp://'+CRED.USER+':'+CRED.PASS+'@'+CRED.HOST+':'+CRED.PORT+'/'
     }
 
     async _prepareFile(file) {
-        if (file.chunks.length == 1) {
+        console.log(file);
+        if (file.chunks.length === 1) {
             try {
                 let buffer = await this._getFileBuffer(this._getFile(file));
                 let msg = {
@@ -38,21 +43,23 @@ class FileService {
             }
         } else if (file.chunks.length > 1) {
             const chunks = file.chunks;
+            let msg = {
+                'bucket': this.bucket || "",
+                'chunks': true,
+                'total': file.chunks.length,
+                'filename': crypto.createHash('sha256').update(new Date().toString() + Math.random()).digest('hex') + path.extname(file.filename),
+                'apikey': this.API_KEY,
+            };
             for (let i = 0; i < chunks.length; i++) {
-
-                let buffer = await this._getFileBuffer(this._getFile(file), i);
-                let msg = {
-                    'bucket': this.bucket || "",
-                    'chunks': true,
-                    'total': file.chunks.length,
-                    'filename': crypto.createHash('sha256').update(new Date().toString() + Math.random()).digest('hex') + path.extname(file.filename),
-                    'apikey': this.API_KEY,
-                    'file': buffer
-                };
-
-                this._sendStream(msg);
+                let buffer = await this._getFileBuffer(this._getFile(file, i));
+                msg.file = buffer;
+                msg.chunkName = chunks[i];
+                await this._sendStream(msg);
             }
+
+            await this._deleteDirIfExist(this._getFileDir(file.filename));
             return msg;
+
         }
     }
 
@@ -65,7 +72,6 @@ class FileService {
     }
 
     _getFile(fileObject, fileIndex = 0) {
-        console.log(fileObject);
         return __dirname + "/" + this._getFileDir(fileObject.filename) + fileObject.chunks[fileIndex];
     }
 
@@ -80,10 +86,7 @@ class FileService {
             let move = 0;
             for (let i = 0; i < names.length; i++) {
                 await fsx.move(names[i], this._getFileDir(file) + names[i]);
-                move++;
-                console.log("moved to " + __dirname + " -- " + this._getFileDir(file));
             }
-            console.log(names.length, move, move === names.length);
             return ({ filename: file, chunks: names });
         } catch (e) {
             return ({ error: e, success: false });
@@ -93,7 +96,7 @@ class FileService {
 
     async _openChannel() {
         try {
-            this.open = await amqp.connect(QUEUE_CONNECTION);
+            this.open = await amqp.connect(this.QUEUE_CONNECTION);
             this.channel = await this.open.createChannel();
         } catch (e) {
             throw { error: "File upload failed.", success: false, err: e };
@@ -101,12 +104,13 @@ class FileService {
     }
 
     async _sendStream(msg) {
-        console.log(msg);
         if (this.channel) {
-            this.channel.assertQueue(QUEUE, { durable: true });
+            await this.channel.assertQueue(QUEUE, { durable: true });
             this.channel.sendToQueue(QUEUE, Buffer.from(JSON.stringify(msg)), { persistent: true });
+            return;
+        }else{
+            this._sendStream(msg);
         }
-        return -1;
     }
 
     setBucket(bucket) {
@@ -115,16 +119,19 @@ class FileService {
     }
 
     async uploadFile(file) {
-        let fileId;
+        let fileId = "Somethign Unexpected happend";
         try {
-            this._openChannel();
+            await this._openChannel();
             let fileChunks = await this._validateFile(file);
+            console.log("File chunked!", fileChunks);
             let payload = await this._prepareFile(fileChunks);
-            if (payload && payload.chunks !== true) {
-                this._sendStream(payload); // direct upload single file
-                fileId = payload.filename;
-            }
+            console.log("File Prepared!")
+            fileId = payload;
 
+            if (payload && payload.chunks !== true) {
+                await this._sendStream(payload); // direct upload single file
+            }
+            fileId.file = "FILE_DATA";
             return fileId;
         } catch (e) {
             console.log(e);
@@ -139,16 +146,10 @@ class FileService {
 }
 
 
-let service = new FileService('9adbe0b3033881f88ebd825bcf763b43').setBucket("fastlane/upload/test");
+module.export = FileService;
 
 
-// setInterval(()=>{
 
-
-service.uploadFile('fastlane.zip').then((data) => {
-    console.log('key', data);
-});
-// }, 10);
 
 
 
