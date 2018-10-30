@@ -15,7 +15,22 @@ const fetch = (req, res) => {
     }
 };
 
+const fetchByBucket = (req, res) => {
+    const imageId = req.params.imageId;
+    const bucket = req.params.bucket;
+    const filePath = '/data/filesystem/images/' + bucket +"_"+ imageId;
+    if (fs.existsSync(filePath)) {
+        res.sendFile(filePath);
+    } else {
+        let err = new Error();
+        err.code = "NO_IMAGE_ID";
+        err.message = "No image with the current name.";
+        res.status(httpStatusCodes.NOT_FOUND).json(err);
+    }
+};
+
 
 module.exports = {
-    fetch: fetch
+    fetch: fetch,
+    fetchByBucket:fetchByBucket
 };

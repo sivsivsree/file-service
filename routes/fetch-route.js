@@ -9,7 +9,7 @@ const path = require('path');
 const fetchController = require('../controllers/fetch-controller');
 
 router.route('/file/:imageId').get(fetchController.fetch);
-
+router.route('/file/:bucket/:imageId').get(fetchController.fetchByBucket);
 
 module.exports = {
     router: router
